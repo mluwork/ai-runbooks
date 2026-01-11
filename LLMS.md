@@ -1,176 +1,83 @@
 # LLM Agent Instructions
 
-This file provides comprehensive guidance for AI assistants (Claude, Gemini, ChatGPT, etc.) working with this security operations repository. It serves as the primary orientation document for understanding the project structure, capabilities, and specialized workflows.
+This file provides comprehensive guidance for AI assistants (Claude, Gemini, Antigravity, etc.) working with this security operations repository. It serves as the primary orientation document for understanding the agentic architecture, capabilities, and specialized workflows.
 
 ## Project Overview
 
-This is a security operations (SOC) runbook and persona system designed to guide LLM agents through standardized security workflows. The repository contains documentation, procedural guides, and configuration scripts for AI-assisted security operations.
+This is an agentic security operations (SOC) framework designed to guide LLM agents through standardized security workflows. The repository follows a hierarchical structure: `Agent → SubAgent → Workflow → Skills → MCP/Tools`.
 
 ## Repository Structure
 
-- `rules_bank/` - Master source directory containing all documentation, personas, and runbooks
-  - `personas/` - Security role definitions (SOC Analysts, Threat Hunters, Incident Responders, etc.)
-  - `run_books/` - Step-by-step procedural guides for security tasks
-    - `common_steps/` - Reusable procedure components
-    - `irps/` - Incident Response Plans for major incidents
-    - `guidelines/` - Best practices and documentation guides
-- `.claude/` - Claude Code configuration directory
-  - `rules_bank/` - Symlink to ../rules_bank (provides access to all content)
-- `.clinerules/` - Cline configuration directory
-  - `rules_bank/` - Symlink to ../rules_bank (provides access to all content)
-- `.gemini/` - Gemini CLI configuration directory
-  - `rules_bank/` - Symlink to ../rules_bank (provides access to all content)
-- `reports/` - Generated security reports and examples
+- `agents/` - **Single Source of Truth** for security roles (Agents). Contains Markdown files with YAML frontmatter defining objectives, permissions, and instructions.
+- `workflows/` - Multi-step security procedures (playbooks) defined in YAML.
+- `skills/` - Atomic security capabilities (tools). Each skill is a self-contained directory with a `SKILL.md` instruction file.
+- `rules_bank/` - Master reference directory for runbooks, guidelines, and documentation.
+- `reports/` - Generated security reports and investigation findings.
+- `.claude/`, `.gemini/` - Tool-specific configurations using symlinks to the top-level `agents/` and `workflows/` directories.
 
-## Multi-LLM Architecture
+## Agentic Hierarchy
 
-This repository is designed for seamless integration across multiple AI assistants through a unified content structure:
+### 1. Agents (`agents/`)
+Agents define the **Identity** and **Permissions** of the AI assistant. Each agent file includes:
+- **Critical Instructions**: Behavioral constraints prioritized by the LLM.
+- **Objective**: The primary mission of the role.
+- **Permissions**: Primary, allowed, and forbidden skills.
+- **Workflows**: Authorized multi-step procedures.
 
-### Supported AI Tools
-- **Claude Code**: Accesses content through `.claude/rules_bank/` symlinks
-- **Cline**: Utilizes `.clinerules/rules_bank/` directory structure  
-- **Gemini CLI**: Reads from `.gemini/rules_bank/` configuration
-- **Other LLMs**: Can directly access `rules_bank/` master content
+**Available Agents:**
+`tier1-soc-analyst`, `tier2-soc-analyst`, `tier3-soc-analyst`, `threat-hunter`, `incident-responder`, `cti-researcher`, `detection-engineer`, `soc-manager`, `ciso`, `compliance-manager`, `information-architect`, `red-team`.
 
-### Unified Content Access
-All AI tools access identical content through symlinks to the master `rules_bank/` directory. This architecture:
-- Ensures consistency across different AI platforms
-- Eliminates content duplication and maintenance overhead
-- Provides standardized security workflows regardless of the AI assistant used
-- Maintains specialized tool configurations while sharing core knowledge
+### 2. Workflows (`workflows/`)
+Workflows define the **Logic** for complex operations. They are orchestrated using the `/run-workflow` skill.
+- **Triage**: `default-triage`, `quick-enrichment`.
+- **Hunting**: `hypothesis-hunt`, `threat-actor-hunt`, `ioc-sweep`.
+- **Incident Response**: `ransomware-incident`, `phishing-incident`, `account-compromise`.
 
-## Configuration Scripts
+### 3. Skills (`skills/`)
+Skills define the **Capabilities**. Every skill performs a "Pre-Flight Check" against the active agent context to ensure authorization before execution.
 
-### Setting Active Persona
-```bash
-python set_persona_rules.py <persona_name>
-# Example: python set_persona_rules.py tier1_soc_analyst
+## Operations
+
+### Activating an Agent
+Use the `/activate-agent` skill to establish your role and permissions for the session:
 ```
-Currently supported personas: `tier1_soc_analyst`, `threat_hunter`
-
-### Linking Common Steps
-```bash
-python symlink_common_steps.py
+/activate-agent tier1-soc-analyst
 ```
-Run this after changing personas to ensure common steps remain accessible.
+*Note: Escalating to a higher privilege level (e.g., Level 1 → Level 4) requires explicit user confirmation.*
 
-## Key Concepts & Capabilities
+### Executing a Workflow
+Use the `/run-workflow` skill to execute guided procedures:
+```
+/run-workflow default-triage CASE_ID=12345
+```
 
-### Core Components
-- **Runbooks**: Tactical, step-by-step procedures for specific security tasks (alert triage, IOC enrichment, threat hunting)
-- **IRPs**: End-to-end incident response plans for major incidents following PICERL lifecycle  
-- **Personas**: Predefined security roles with specific responsibilities, skills, tool access, and specialized slash commands
-- **MCP Integration**: Model Context Protocol tools for Chronicle SIEM, SOAR, Google Threat Intelligence, and Security Command Center
+### Generic Skills
+Execute atomic skills directly if authorized by your agent:
+```
+/enrich-ioc IOC_VALUE=evil.com IOC_TYPE=domain
+```
 
-### Advanced Features
-- **Slash Commands**: Specialized commands for security workflows (primarily supported in Claude)
-- **Dynamic Configuration**: Persona-based context switching and tool access management
-- **Report Generation**: Automated security report creation with standardized templates
-- **Threat Intelligence**: Active integration with Google Threat Intelligence and security feeds
-- **Multi-Platform SIEM**: Chronicle, SOAR case management, and cloud security integration
+## Security Model
 
-## Working with the Codebase
+1. **Agent as Context**: Your role is defined by the loaded agent file. Follow its `Critical Instructions` strictly.
+2. **Pre-Flight Checks**: Every skill validates that it is listed in your agent's `primary_skills` or `allowed_skills`.
+3. **Privilege Levels**: Agents are ranked from Level 1 (Triage) to Level 4 (Incident Response).
+4. **Containment**: Only Level 3+ agents can execute containment actions (e.g., host isolation).
 
-1. The primary content lives in `rules_bank/` - edit source files there, not in the symlinked directories
-2. The symlinks in `.claude/`, `.clinerules/`, and `.gemini/` automatically reflect changes made to `rules_bank/`
-3. The project uses MCP (Model Context Protocol) tools for integration with Google Cloud security services
-4. Runbook actions map to specific agent tools (see `rules_bank/agent_tool_mapping.md`)
+## Multi-LLM Integration
 
-## Essential Context Sources for LLMs
+- **Claude Code**: Accesses agents via `.claude/agents/` symlinks. Uses the `subagent_type` mapping.
+- **Gemini CLI**: Uses `save_memory` to persist agent context across turns. Recommended to re-include agent file for long investigations: `gemini -p "@agents/tier1-soc-analyst.md ..."`
+- **Antigravity**: Uses the top-level `agents/` directory to manage persona selection.
 
-This repository includes multiple layers of context to help AI assistants understand domain-specific security terminology, workflows, and relationships:
+## Essential Context Sources
 
-### Primary Context Files (Check These First!)
-- **`LLMS-THESAURUS.md`** - Controlled vocabulary with security terminology definitions, hierarchical relationships (BT/NT/RT), and scope notes. **CRITICAL for understanding security concepts and terminology consistency.**
-- **`LLMS-SITEMAP.md`** - Structural navigation providing directory overviews, content organization maps, priority markers, and cross-references. **ESSENTIAL for understanding content relationships and navigation.**
-- **`agent_tool_mapping.md`** - Maps runbook actions to specific MCP tools and security platforms
-- **`personas/`** - Role-specific context including responsibilities, skills, tools, and specialized slash commands
-
-**Note on IA File Precedence:** When multiple LLMS-* files exist, prioritize the one closest to your working directory. The rules_bank/LLMS-* files take precedence for security operations, while local directory LLMS-* files provide the most specific context.
-
-### Information Architecture Files (When Present)
-- **`CONTENT_AUDIT_[date].md`** - Quality assessments and improvement recommendations
-- **`CONTENT_INVENTORY_[date].md`** - Comprehensive catalogs of all content assets
-- **`CONTENT_RELATIONSHIPS_[date].md`** - Dependency and relationship analysis between documents
-- **`DOCUMENT_CLUSTERING_[date].md`** - Automated topic grouping and similarity analysis  
-- **`TAXONOMY_[date].md`** - Hierarchical classification systems for content organization
-
-### Specialized Enhancement Files
-- **`SuperClaude_Framework/`** - Advanced command framework with specialized security slash commands
-- **`reporting_templates.md`** - Standardized formats for security report generation
-- **`./reports/`** - Real-world examples of generated security reports and investigations
-
-### Usage Guidelines
-**ALWAYS check for these essential files in directories:**
-- **LLMS-THESAURUS.md** - For domain vocabulary and terminology consistency
-- **LLMS-SITEMAP.md** - For structural navigation and content relationships
-
-These files provide critical context that standard directory listings cannot convey. The specialized terminology and controlled vocabulary from LLMS-THESAURUS.md combined with the structural relationships from LLMS-SITEMAP.md are essential for maintaining consistency and accuracy in security operations.
-
-## Code Style
-
-When writing Python scripts:
-- Follow Google Python Style Guide
-- Use `pyink` for formatting
-- Use `isort` for import sorting
-- Line length: 88 characters
-- Indentation: 2 or 4 spaces (be consistent within files)
+- **`LLMS-THESAURUS.md`**: Controlled vocabulary and security terminology definitions.
+- **`LLMS-SITEMAP.md`**: Structural navigation and content relationships.
+- **`agent_tool_mapping.md`**: Maps runbook actions to specific MCP tools.
 
 ## Report Generation
 
-When executing security runbooks that generate reports (triage, investigations, hunts, etc.):
-
-- **ALWAYS write reports to the `./reports/` directory**
-- Use standardized naming convention: `<report_type>_<identifier>_<timestamp>.md`
-- Examples:
-  - `./reports/alert_triage_report_2194_20250504_1807.md`
-  - `./reports/rule_triage_report_ru_99d1f620_20250720_0215.md`
-  - `./reports/ioc_enrichment_report_scarfponcho.com_20250503_1856.md`
-- Follow the reporting templates in `rules_bank/reporting_templates.md`
-- Include proper metadata, findings, and recommendations in all reports
-
-## Available Tools & Integrations
-
-### MCP (Model Context Protocol) Tools
-The repository integrates with multiple security platforms through MCP tools:
-
-- **`secops-mcp`** - Chronicle SIEM integration (alerts, events, rules, threat intelligence)
-- **`secops-soar`** - SOAR platform integration (case management, alerts, entities, workflows)
-- **`gti`** - Google Threat Intelligence (threat analysis, IOC enrichment, malware research)
-- **`scc-mcp`** - Security Command Center (cloud security posture, vulnerability management)
-
-### Slash Commands (Claude-Specific)
-Specialized security commands available in Claude for advanced workflows:
-- **`/security:investigate`** - Comprehensive incident investigation and analysis
-- **`/security:hunt`** - Proactive threat hunting and pattern detection
-- **`/security:analyze`** - Deep analysis of rules, IOCs, and security events
-- **`/security:enrich`** - Threat intelligence enrichment and contextualization
-- **`/security:correlate`** - Multi-source correlation and pattern matching
-- **`/security:detect`** - Detection rule creation and optimization
-
-### Information Architecture Commands (Claude-Specific)
-Content organization and analysis capabilities:
-- **`/thesaurus`** - Generate controlled vocabulary and terminology maps
-- **`/content-audit`** - Comprehensive content quality assessment
-- **`/sitemap`** - Create structural navigation and content maps
-- **`/taxonomy`** - Develop hierarchical classification systems
-
-## Important Notes & Best Practices
-
-### Repository Guidelines
-- This is primarily a documentation repository - no build, test, or lint commands exist
-- **Always edit source files in `rules_bank/`** - not through symlinked directories
-- Changes to `rules_bank/` automatically propagate to all AI tool configurations
-- The symlink system ensures unified access across different AI platforms
-
-### Security Operations Focus
-- Specialized for defensive security operations and incident response
-- Integrates with enterprise security platforms (Chronicle, SOAR, GTI, SCC)
-- Follows industry-standard frameworks (MITRE ATT&CK, NIST, SANS)
-- Designed for real-world SOC analyst and security engineer workflows
-
-### Context Optimization
-- **Read LLMS-THESAURUS.md files first** for domain vocabulary understanding
-- Check persona files for role-specific context and available tools
-- Reference agent_tool_mapping.md for MCP tool capabilities
-- Use reporting templates for consistent output formatting
+- **ALWAYS** write reports to the `./reports/` directory.
+- Format: `<report_type>_<identifier>_<timestamp>.md`.
+- Follow templates in `rules_bank/reporting_templates.md`.

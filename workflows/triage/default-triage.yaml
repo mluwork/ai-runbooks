@@ -1,0 +1,67 @@
+name: default-triage
+display_name: Default Alert Triage
+description: Standard Tier 1 workflow for triaging inbound security alerts.
+trigger: CASE_ID or ALERT_ID provided
+
+required_inputs:
+  - name: CASE_ID
+    type: string
+    description: SOAR case identifier
+
+chain:
+  - step: 1
+    skill: check-duplicates
+    inputs:
+      CASE_ID: ${CASE_ID}
+    outputs: [is_duplicate, duplicate_case_id]
+    on_duplicate: stop
+
+  - step: 2
+    skill: triage-alert
+    inputs:
+      CASE_ID: ${CASE_ID}
+    outputs: [classification, key_entities, priority]
+
+  - step: 3
+    skill: enrich-ioc
+    for_each: ${key_entities}
+    inputs:
+      IOC_VALUE: ${item.value}
+      IOC_TYPE: ${item.type}
+    outputs: [enrichment_results]
+
+  - step: 4
+    type: decision
+    condition: ${classification}
+    branches:
+      TRUE_POSITIVE:
+        - skill: document-in-soar
+          inputs:
+            CASE_ID: ${CASE_ID}
+            COMMENT: "Confirmed TP. Enrichment: ${enrichment_results}"
+        - action: escalate
+          target: tier2-soc-analyst
+      FALSE_POSITIVE:
+        - skill: close-soar-artifact
+          inputs:
+            ARTIFACT_ID: ${CASE_ID}
+            ARTIFACT_TYPE: case
+            CLOSURE_REASON: FALSE_POSITIVE
+            ROOT_CAUSE: "Triage results: ${classification}"
+      BENIGN_TRUE_POSITIVE:
+        - skill: close-soar-artifact
+          inputs:
+            ARTIFACT_ID: ${CASE_ID}
+            ARTIFACT_TYPE: case
+            CLOSURE_REASON: BENIGN_TRUE_POSITIVE
+            ROOT_CAUSE: "Triage results: ${classification}"
+
+  - step: 5
+    skill: generate-report
+    inputs:
+      CASE_ID: ${CASE_ID}
+      REPORT_TYPE: triage
+
+outputs:
+  - name: triage_result
+    description: Final classification and disposition

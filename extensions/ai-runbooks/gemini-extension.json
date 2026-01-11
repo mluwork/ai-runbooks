@@ -1,0 +1,31 @@
+{
+  "name": "ai-runbooks",
+  "version": "1.0.0",
+  "description": "Standardized Security Operations Agent Skills for Triage, Investigation, Hunting, and Response.",
+  "skills": [
+    "triage-alert",
+    "triage-suspicious-login",
+    "triage-malware",
+    "deep-dive-ioc",
+    "correlate-ioc",
+    "pivot-on-ioc",
+    "enrich-ioc",
+    "find-relevant-case",
+    "hunt-threat",
+    "hunt-apt",
+    "hunt-ioc",
+    "hunt-lateral-movement",
+    "hunt-credential-access",
+    "respond-ransomware",
+    "respond-malware",
+    "respond-phishing",
+    "respond-compromised-account",
+    "activate-persona",
+    "run-workflow",
+    "check-duplicates",
+    "document-in-soar",
+    "close-soar-artifact",
+    "generate-report",
+    "confirm-action"
+  ]
+}

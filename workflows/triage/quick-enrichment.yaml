@@ -1,0 +1,39 @@
+name: quick-enrichment
+display_name: Quick IOC Enrichment
+description: Fast enrichment and correlation for a single indicator without case context.
+trigger: IOC value provided without case context
+
+required_inputs:
+  - name: IOC_VALUE
+    type: string
+    description: Indicator value
+  - name: IOC_TYPE
+    type: string
+    description: ip, domain, hash, or url
+
+chain:
+  - step: 1
+    skill: enrich-ioc
+    inputs:
+      IOC_VALUE: ${IOC_VALUE}
+      IOC_TYPE: ${IOC_TYPE}
+    outputs: [gti_findings, threat_score, malicious_confidence]
+
+  - step: 2
+    skill: correlate-ioc
+    inputs:
+      IOC_VALUE: ${IOC_VALUE}
+    outputs: [related_alerts, related_cases]
+
+  - step: 3
+    type: decision
+    condition: ${malicious_confidence}
+    branches:
+      high:
+        - action: recommend_escalation
+      low:
+        - action: document_findings
+
+outputs:
+  - name: enrichment_summary
+    description: Summary of GTI findings and local correlation

@@ -1,0 +1,44 @@
+name: ttp-hunt
+display_name: TTP Hunt
+description: Hunt for specific tactical behaviors like Lateral Movement or Credential Access.
+trigger: TTP_CATEGORY provided
+
+required_inputs:
+  - name: TTP_CATEGORY
+    type: string
+    description: Category of TTP to hunt (e.g., "lateral-movement", "credential-access")
+  - name: TIME_FRAME_HOURS
+    type: integer
+    description: Lookback period in hours
+    default: 168
+
+chain:
+  - step: 1
+    type: decision
+    condition: ${TTP_CATEGORY}
+    branches:
+      lateral-movement:
+        - skill: hunt-lateral-movement
+          inputs:
+            TIME_FRAME_HOURS: ${TIME_FRAME_HOURS}
+          outputs: [SUSPICIOUS_EVENTS, AFFECTED_HOSTS]
+      credential-access:
+        - skill: hunt-credential-access
+          inputs:
+            TIME_FRAME_HOURS: ${TIME_FRAME_HOURS}
+          outputs: [COMPROMISED_ACCOUNTS, ATTACK_SOURCE_IPS]
+      default:
+        - skill: hunt-threat
+          inputs:
+            HUNT_HYPOTHESIS: "Generic hunt for ${TTP_CATEGORY}"
+            TIME_FRAME_HOURS: ${TIME_FRAME_HOURS}
+          outputs: [INITIAL_FINDINGS]
+
+  - step: 2
+    skill: document-in-soar
+    inputs:
+      COMMENT: "TTP Hunt for ${TTP_CATEGORY} completed."
+
+outputs:
+  - name: findings
+    description: Detailed findings from the TTP hunt

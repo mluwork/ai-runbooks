@@ -1,0 +1,54 @@
+name: hypothesis-hunt
+display_name: Hypothesis Driven Hunt
+description: Conduct proactive, hypothesis-driven threat hunting based on a specific threat behavior or TTP.
+trigger: HUNT_HYPOTHESIS provided
+
+required_inputs:
+  - name: HUNT_HYPOTHESIS
+    type: string
+    description: Clear statement of the hunt objective (e.g., "Suspected DNS tunneling for C2")
+  - name: RELEVANT_GTI_REPORTS
+    type: list
+    description: Optional list of relevant GTI report IDs
+    required: false
+  - name: TIME_FRAME_HOURS
+    type: integer
+    description: Lookback period in hours
+    default: 168
+
+chain:
+  - step: 1
+    skill: hunt-threat
+    inputs:
+      HUNT_HYPOTHESIS: ${HUNT_HYPOTHESIS}
+      RELEVANT_GTI_REPORTS: ${RELEVANT_GTI_REPORTS}
+      TIME_FRAME_HOURS: ${TIME_FRAME_HOURS}
+    outputs: [HUNT_QUERIES, INITIAL_FINDINGS, THREAT_CONFIRMED, HIGH_CONFIDENCE_IOCS]
+
+  - step: 2
+    type: decision
+    condition: ${THREAT_CONFIRMED}
+    branches:
+      true:
+        - skill: document-in-soar
+          inputs:
+            COMMENT: "HUNT CONFIRMED THREAT: ${HUNT_HYPOTHESIS}. IOCs: ${HIGH_CONFIDENCE_IOCS}"
+        - action: escalate
+          target: incident-responder
+      false:
+        - skill: document-in-soar
+          inputs:
+            COMMENT: "Hunt completed for ${HUNT_HYPOTHESIS}. No active threat confirmed. Findings: ${INITIAL_FINDINGS}"
+
+  - step: 3
+    skill: generate-report
+    inputs:
+      REPORT_TYPE: hunt_summary
+      HUNT_HYPOTHESIS: ${HUNT_HYPOTHESIS}
+      HUNT_FINDINGS: ${INITIAL_FINDINGS}
+
+outputs:
+  - name: hunt_status
+    description: Outcome of the hunt (THREAT_CONFIRMED or COMPLETED)
+  - name: high_confidence_iocs
+    description: List of confirmed malicious indicators found

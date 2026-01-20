@@ -1,0 +1,30 @@
+name: account-compromise
+display_name: Account Compromise Response
+description: Workflow for handling comprised user identities.
+trigger: CASE_ID and user account reference
+
+required_inputs:
+  - name: CASE_ID
+    type: string
+    description: SOAR case identifier
+  - name: COMPROMISED_USER
+    type: string
+    description: ID or email of the compromised user
+
+chain:
+  - step: 1
+    skill: respond-compromised-account
+    inputs:
+      CASE_ID: ${CASE_ID}
+      USER_ID: ${COMPROMISED_USER}
+    outputs: [PASSWORD_RESET, SESSIONS_REVOKED, MFA_RESET]
+
+  - step: 2
+    skill: document-in-soar
+    inputs:
+      CASE_ID: ${CASE_ID}
+      COMMENT: "Account Compromise Actions for ${COMPROMISED_USER}: Password Reset=${PASSWORD_RESET}, Sessions Revoked=${SESSIONS_REVOKED}"
+
+outputs:
+  - name: account_status
+    description: Current status of the account (SECURED, LOCKED)

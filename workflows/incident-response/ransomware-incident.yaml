@@ -1,0 +1,61 @@
+name: ransomware-incident
+display_name: Ransomware Incident Response
+description: Full PICERL response workflow for ransomware incidents.
+trigger: CASE_ID provided and ransomware suspected
+
+required_inputs:
+  - name: CASE_ID
+    type: string
+    description: SOAR case identifier
+  - name: ALERT_GROUP_IDENTIFIERS
+    type: list
+    description: Optional identifiers for the alert group
+    required: false
+  - name: INITIAL_INDICATORS
+    type: map
+    description: Dictionary of initial findings (hashes, hosts)
+    required: false
+
+chain:
+  # Phase 1: Identification & Triage
+  - step: 1
+    skill: check-duplicates
+    inputs:
+      CASE_ID: ${CASE_ID}
+    outputs: [is_duplicate]
+    on_duplicate: stop
+
+  - step: 2
+    skill: respond-ransomware
+    inputs:
+      CASE_ID: ${CASE_ID}
+      INITIAL_INDICATORS: ${INITIAL_INDICATORS}
+    outputs: [AFFECTED_SYSTEMS, RANSOMWARE_VARIANT, ISOLATED_SYSTEMS, CLEANED_SYSTEMS]
+
+  # Phase 2: Containment Verification (Human-in-the-loop implicit in skill, but re-checked here)
+  - step: 3
+    type: decision
+    condition: ${ISOLATED_SYSTEMS.length > 0}
+    branches:
+      true:
+        - skill: document-in-soar
+          inputs:
+            CASE_ID: ${CASE_ID}
+            COMMENT: "Ransomware Containment Executed. Isolated Systems: ${ISOLATED_SYSTEMS}. Variant: ${RANSOMWARE_VARIANT}"
+      false:
+        - skill: confirm-action
+          inputs:
+            ACTION: "No systems were isolated automatically. Confirm manual containment status."
+
+  # Phase 3: Reporting
+  - step: 4
+    skill: generate-report
+    inputs:
+      CASE_ID: ${CASE_ID}
+      REPORT_TYPE: ransomware_incident
+      VARAINT: ${RANSOMWARE_VARIANT}
+      AFFECTED_COUNT: ${AFFECTED_SYSTEMS.length}
+
+outputs:
+  - name: incident_status
+    description: Final status of the ransomware incident (CONTAINED, ERADICATED)

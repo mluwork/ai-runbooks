@@ -1,0 +1,47 @@
+name: threat-actor-hunt
+display_name: Threat Actor Hunt
+description: Targeted hunt for a specific threat actor's TTPs and indicators.
+trigger: THREAT_ACTOR_ID provided
+
+required_inputs:
+  - name: THREAT_ACTOR_ID
+    type: string
+    description: Name or ID of the threat actor (e.g., "APT29", "FIN7")
+  - name: TIME_FRAME_HOURS
+    type: integer
+    description: Lookback period in hours
+    default: 168
+
+chain:
+  - step: 1
+    skill: hunt-apt
+    inputs:
+      ACTOR_ID: ${THREAT_ACTOR_ID}
+      TIME_FRAME_HOURS: ${TIME_FRAME_HOURS}
+    outputs: [ACTOR_TTPS, HUNT_FINDINGS, THREAT_CONFIRMED, RELATED_IOCS]
+
+  - step: 2
+    type: decision
+    condition: ${THREAT_CONFIRMED}
+    branches:
+      true:
+        - skill: document-in-soar
+          inputs:
+            COMMENT: "ACTIVE THREAT ACTOR CONFIRMED: ${THREAT_ACTOR_ID}. Indicators: ${RELATED_IOCS}"
+        - action: escalate
+          target: incident-responder
+      false:
+        - skill: document-in-soar
+          inputs:
+            COMMENT: "Hunt for ${THREAT_ACTOR_ID} completed. No active signs found. TTPs searched: ${ACTOR_TTPS}"
+
+  - step: 3
+    skill: generate-report
+    inputs:
+      REPORT_TYPE: hunt_summary
+      THREAT_ACTOR: ${THREAT_ACTOR_ID}
+      FINDINGS: ${HUNT_FINDINGS}
+
+outputs:
+  - name: hunt_result
+    description: Detection status for the specific threat actor

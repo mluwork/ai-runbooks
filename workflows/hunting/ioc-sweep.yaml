@@ -1,0 +1,52 @@
+name: ioc-sweep
+display_name: IOC Sweep
+description: Rapidly sweep the environment for a list of indicators of compromise.
+trigger: IOC_LIST provided
+
+required_inputs:
+  - name: IOC_LIST
+    type: list
+    description: List of IOCs to search for (IPs, Domains, Hashes)
+  - name: TIME_FRAME_HOURS
+    type: integer
+    description: Lookback period in hours
+    default: 24
+
+chain:
+  - step: 1
+    skill: hunt-ioc
+    inputs:
+      IOC_LIST: ${IOC_LIST}
+      TIME_FRAME_HOURS: ${TIME_FRAME_HOURS}
+    outputs: [MATCHED_IOCS, AFFECTED_ASSETS, SEARCH_SUMMARY]
+
+  - step: 2
+    skill: enrich-ioc
+    for_each: ${MATCHED_IOCS}
+    inputs:
+      IOC_VALUE: ${item.value}
+      IOC_TYPE: ${item.type}
+    outputs: [ENRICHMENT_DATA]
+
+  - step: 3
+    type: decision
+    condition: ${MATCHED_IOCS.length > 0}
+    branches:
+      true:
+        - skill: document-in-soar
+          inputs:
+            COMMENT: "IOC Sweep Positive. Matches: ${MATCHED_IOCS}. Assets: ${AFFECTED_ASSETS}"
+        - skill: generate-report
+          inputs:
+            REPORT_TYPE: ioc_sweep
+            MATCHES: ${MATCHED_IOCS}
+      false:
+        - skill: document-in-soar
+          inputs:
+            COMMENT: "IOC Sweep Negative. No matches found for ${IOC_LIST.length} indicators."
+
+outputs:
+  - name: matches
+    description: List of IOCs found in the environment
+  - name: affected_assets
+    description: List of assets communicating with matched IOCs

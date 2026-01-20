@@ -1,0 +1,36 @@
+name: phishing-incident
+display_name: Phishing Incident Response
+description: Workflow to handle reported phishing emails and compromised users.
+trigger: CASE_ID or reported email
+
+required_inputs:
+  - name: CASE_ID
+    type: string
+    description: SOAR case identifier
+  - name: EMAIL_HEADERS
+    type: string
+    description: Headers of the suspicious email
+    required: false
+
+chain:
+  - step: 1
+    skill: respond-phishing
+    inputs:
+      CASE_ID: ${CASE_ID}
+    outputs: [SENDER_BLOCKED, URLS_BLOCKED, AFFECTED_USERS]
+
+  - step: 2
+    skill: document-in-soar
+    inputs:
+      CASE_ID: ${CASE_ID}
+      COMMENT: "Phishing Response Actions: Sender Blocked=${SENDER_BLOCKED}, URLs Blocked=${URLS_BLOCKED}. Users notified: ${AFFECTED_USERS}"
+
+  - step: 3
+    skill: generate-report
+    inputs:
+      CASE_ID: ${CASE_ID}
+      REPORT_TYPE: phishing_incident
+
+outputs:
+  - name: campaign_status
+    description: Status of the phishing campaign (ACTIVE, CONTAINED)
